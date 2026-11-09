@@ -57,29 +57,20 @@
         .music-btn:hover {
             background: rgba(255, 255, 255, 0.25);
         }
-        /* ซ่อนกรอบ YouTube แบบไม่ให้เบราว์เซอร์บล็อกเสียง */
-        #youtube-player {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 10px;
-            height: 10px;
-            opacity: 0.01;
-            pointer-events: none;
-            z-index: -1;
-        }
     </style>
 </head>
 <body>
 
     <div class="header-title">✿ Click anywhere to plant a flower. ✿</div>
-    <button class="music-btn" id="musicToggleBtn">🎵 แตะหน้าจอเพื่อเปิดเพลง</button>
+    <button class="music-btn" id="musicToggleBtn">🎵 เพลง: ปิดอยู่ (แตะหน้าจอเพื่อเปิด)</button>
 
-    <div id="youtube-player"></div>
+    <!-- ดึงไฟล์ MP3 ที่อัปโหลดไว้ เล่นตรงไม่ผ่าน YouTube ไม่มีโฆษณา -->
+    <audio id="bgMusic" loop preload="auto">
+        <source src="Daniel Caesar Superpowers Official Audio.mp3" type="audio/mpeg">
+        <source src="music.mp3" type="audio/mpeg">
+    </audio>
 
     <canvas id="canvas"></canvas>
-
-    <script src="https://www.youtube.com/iframe_api"></script>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -93,60 +84,35 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // ระบบ YouTube API (Video ID: TKjh9XO2jNc)
-        let player;
-        let isPlayerReady = false;
-        let musicStarted = false;
+        // ระบบควบคุมเสียงเพลง MP3
+        const bgMusic = document.getElementById('bgMusic');
         const musicToggleBtn = document.getElementById('musicToggleBtn');
-
-        function onYouTubeIframeAPIReady() {
-            player = new YT.Player('youtube-player', {
-                height: '10',
-                width: '10',
-                videoId: 'TKjh9XO2jNc',
-                playerVars: {
-                    'autoplay': 0,
-                    'controls': 0,
-                    'loop': 1,
-                    'playlist': 'TKjh9XO2jNc',
-                    'playsinline': 1
-                },
-                events: {
-                    'onReady': () => {
-                        isPlayerReady = true;
-                        musicToggleBtn.innerText = '🎵 แตะที่ไหนก็ได้เพื่อปลูกดอกไม้และเริ่มเพลง';
-                    }
-                }
-            });
-        }
+        let musicStarted = false;
 
         function startMusic() {
-            if (isPlayerReady && player && player.playVideo) {
-                try {
-                    player.unMute(); // ปลดล็อกเสียงมิวต์
-                    player.setVolume(100); // ตั้งระดับเสียงเต็ม 100
-                    player.playVideo();
+            if (!musicStarted) {
+                bgMusic.play().then(() => {
                     musicStarted = true;
-                    musicToggleBtn.innerText = '🎵 เพลง YouTube: เปิดอยู่';
-                } catch (err) {
-                    console.log("Audio play error:", err);
-                }
+                    musicToggleBtn.innerText = '🎵 เพลง: เปิดอยู่';
+                }).catch((err) => {
+                    console.log("กรุณาตรวจสอบว่ามีไฟล์เพลงอยู่ในโฟลเดอร์เดียวกันหรือไม่", err);
+                });
             }
         }
 
         musicToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!isPlayerReady || !player) return;
-
-            const state = player.getPlayerState();
-            if (state === YT.PlayerState.PLAYING) {
-                player.pauseVideo();
-                musicToggleBtn.innerText = '🔇 เพลง YouTube: ปิดอยู่';
+            if (bgMusic.paused) {
+                bgMusic.play();
+                musicStarted = true;
+                musicToggleBtn.innerText = '🎵 เพลง: เปิดอยู่';
             } else {
-                startMusic();
+                bgMusic.pause();
+                musicToggleBtn.innerText = '🔇 เพลง: ปิดอยู่';
             }
         });
 
+        // รายชื่อชนิดดอกไม้
         const FLOWER_TYPES = ['SUNFLOWER', 'TULIP', 'WHITE_DAISY', 'ROSE', 'PINK_DAISY'];
         
         const flowers = [];
