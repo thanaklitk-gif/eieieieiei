@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✿ Click anywhere to plant a flower ✿</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #070204;
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: pointer;
+        }
+        .header-title {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: rgba(255, 235, 240, 0.85);
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            text-shadow: 0 0 12px rgba(255, 180, 200, 0.6);
+            pointer-events: none;
+        }
+        .music-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .music-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        /* ซ่อนกรอบ YouTube แบบไม่ให้เบราว์เซอร์บล็อกเสียง */
+        #youtube-player {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            opacity: 0.01;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">✿ Click anywhere to plant a flower. ✿</div>
+    <button class="music-btn" id="musicToggleBtn">🎵 แตะหน้าจอเพื่อเปิดเพลง</button>
+
+    <div id="youtube-player"></div>
+
+    <canvas id="canvas"></canvas>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ระบบ YouTube API (Video ID: TKjh9XO2jNc)
+        let player;
+        let isPlayerReady = false;
+        let musicStarted = false;
+        const musicToggleBtn = document.getElementById('musicToggleBtn');
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('youtube-player', {
+                height: '10',
+                width: '10',
+                videoId: 'TKjh9XO2jNc',
+                playerVars: {
+                    'autoplay': 0,
+                    'controls': 0,
+                    'loop': 1,
+                    'playlist': 'TKjh9XO2jNc',
+                    'playsinline': 1
+                },
+                events: {
+                    'onReady': () => {
+                        isPlayerReady = true;
+                        musicToggleBtn.innerText = '🎵 แตะที่ไหนก็ได้เพื่อปลูกดอกไม้และเริ่มเพลง';
+                    }
+                }
+            });
+        }
+
+        function startMusic() {
+            if (isPlayerReady && player && player.playVideo) {
+                try {
+                    player.unMute(); // ปลดล็อกเสียงมิวต์
+                    player.setVolume(100); // ตั้งระดับเสียงเต็ม 100
+                    player.playVideo();
+                    musicStarted = true;
+                    musicToggleBtn.innerText = '🎵 เพลง YouTube: เปิดอยู่';
+                } catch (err) {
+                    console.log("Audio play error:", err);
+                }
+            }
+        }
+
+        musicToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isPlayerReady || !player) return;
+
+            const state = player.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+                musicToggleBtn.innerText = '🔇 เพลง YouTube: ปิดอยู่';
+            } else {
+                startMusic();
+            }
+        });
+
+        const FLOWER_TYPES = ['SUNFLOWER', 'TULIP', 'WHITE_DAISY', 'ROSE', 'PINK_DAISY'];
+        
+        const flowers = [];
+        const ambientParticles = [];
+        const bees = [];
+
+        for (let i = 0; i < 60; i++) {
+            ambientParticles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                size: Math.random() * 2 + 0.8,
+                alpha: Math.random(),
+                speed: 0.004 + Math.random() * 0.01
+            });
+        }
+
+        class Flower {
+            constructor(targetX, targetY) {
+                this.startX = width / 2 + (Math.random() - 0.5) * 50;
+                this.startY = height + 10;
+                this.targetX = targetX;
+                this.targetY = targetY;
+
+                this.ctrlX = (this.startX + targetX) / 2 + (Math.random() - 0.5) * 90;
+                this.ctrlY = (this.startY + targetY) / 2;
+
+                this.progress = 0;
+                this.growSpeed = 0.02 + Math.random() * 0.008;
+                
+                this.bloomScale = 0;
+                this.bloomSpeed = 0.04;
+
+                this.type = FLOWER_TYPES[Math.floor(Math.random() * FLOWER_TYPES.length)];
+                
+                this.leaves = [
+                    { t: 0.35, side: Math.random() > 0.5 ? 1 : -1, size: 14 + Math.random() * 6 },
+                    { t: 0.65, side: Math.random() > 0.5 ? 1 : -1, size: 16 + Math.random() * 6 }
+                ];
+            }
+
+            getPoint(t) {
+                const invT = 1 - t;
+                const x = invT * invT * this.startX + 2 * invT * t * this.ctrlX + t * t * this.targetX;
+                const y = invT * invT * this.startY + 2 * invT * t * this.ctrlY + t * t * this.targetY;
+                return { x, y };
+            }
+
+            getTangentAngle(t) {
+                const invT = 1 - t;
+                const dx = 2 * invT * (this.ctrlX - this.startX) + 2 * t * (this.targetX - this.ctrlX);
+                const dy = 2 * invT * (this.ctrlY - this.startY) + 2 * t * (this.targetY - this.ctrlY);
+                return Math.atan2(dy, dx);
+            }
+
+            update() {
+                if (this.progress < 1) {
+                    this.progress += this.growSpeed;
+                    if (this.progress > 1) this.progress = 1;
+                } else if (this.bloomScale < 1) {
+                    this.bloomScale += this.bloomSpeed;
+                    if (this.bloomScale > 1) this.bloomScale = 1;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.strokeStyle = '#43a047';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+
+                const steps = 30;
+                const currentSteps = Math.floor(steps * this.progress);
+                
+                for (let i = 0; i <= currentSteps; i++) {
+                    const t = (i / steps) * this.progress;
+                    const pt = this.getPoint(t);
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                ctx.stroke();
+
+                this.leaves.forEach(leaf => {
+                    if (this.progress >= leaf.t) {
+                        const pt = this.getPoint(leaf.t);
+                        const angle = this.getTangentAngle(leaf.t) + (leaf.side * Math.PI / 3);
+
+                        ctx.save();
+                        ctx.translate(pt.x, pt.y);
+                        ctx.rotate(angle);
+                        
+                        ctx.fillStyle = '#388e3c';
+                        ctx.beginPath();
+                        ctx.ellipse(leaf.size / 2, 0, leaf.size, leaf.size * 0.38, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                });
+                ctx.restore();
+
+                if (this.progress >= 1 && this.bloomScale > 0) {
+                    ctx.save();
+                    ctx.translate(this.targetX, this.targetY);
+                    ctx.scale(this.bloomScale, this.bloomScale);
+
+                    this.drawFlowerHead(ctx);
+                    ctx.restore();
+                }
+            }
+
+            drawFlowerHead(ctx) {
+                ctx.save();
+                switch (this.type) {
+                    case 'SUNFLOWER':
+                        ctx.shadowColor = '#ffc107';
+                        ctx.shadowBlur = 25;
+
+                        ctx.fillStyle = '#ffca28';
+                        for (let i = 0; i < 20; i++) {
+                            ctx.rotate((Math.PI * 2) / 20);
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(-6, -26);
+                            ctx.lineTo(0, -32);
+                            ctx.lineTo(6, -26);
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        ctx.fillStyle = '#4a2504';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffd54f';
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                        break;
+
+                    case 'TULIP':
+                        ctx.shadowColor = '#ff4081';
+                        ctx.shadowBlur = 25;
+
+                        ctx.fillStyle = '#f50057';
+                        ctx.beginPath();
+                        ctx.arc(-7, -8, 12, 0, Math.PI * 2);
+                        ctx.arc(7, -8, 12, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#ff4081';
+                        ctx.beginPath();
+                        ctx.arc(0, -3, 14, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'WHITE_DAISY':
+                        ctx.shadowColor = '#ffffff';
+                        ctx.shadowBlur = 22;
+
+                        ctx.fillStyle = '#ffffff';
+                        for (let i = 0; i < 16; i++) {
+                            ctx.rotate((Math.PI * 2) / 16);
+                            ctx.beginPath();
+                            ctx.ellipse(0, -18, 5.5, 12, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        ctx.fillStyle = '#ffb300';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 9.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'ROSE':
+                        ctx.shadowColor = '#ff1744';
+                        ctx.shadowBlur = 25;
+
+                        ctx.fillStyle = '#d50000';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 22, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#ff1744';
+                        for (let r = 18; r > 4; r -= 4.5) {
+                            ctx.beginPath();
+                            ctx.arc((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, r, 0, Math.PI * 1.6);
+                            ctx.fill();
+                        }
+                        break;
+
+                    case 'PINK_DAISY':
+                        ctx.shadowColor = '#ff80ab';
+                        ctx.shadowBlur = 22;
+
+                        ctx.fillStyle = '#ff80ab';
+                        for (let i = 0; i < 14; i++) {
+                            ctx.rotate((Math.PI * 2) / 14);
+                            ctx.beginPath();
+                            ctx.ellipse(0, -17, 5, 11, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        ctx.fillStyle = '#ffe082';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 9, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                }
+                ctx.restore();
+            }
+        }
+
+        class Bee {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height * 0.4;
+                this.targetFlower = null;
+                this.state = 'FLYING';
+                this.hoverTimer = 0;
+                this.wingAngle = 0;
+                this.speed = 2.8;
+            }
+
+            update() {
+                this.wingAngle += 0.45;
+                const bloomed = flowers.filter(f => f.bloomScale >= 0.8);
+
+                if (bloomed.length > 0) {
+                    if (!this.targetFlower || !bloomed.includes(this.targetFlower)) {
+                        this.targetFlower = bloomed[Math.floor(Math.random() * bloomed.length)];
+                        this.state = 'FLYING';
+                    }
+
+                    if (this.state === 'FLYING') {
+                        const dx = this.targetFlower.targetX - this.x;
+                        const dy = (this.targetFlower.targetY - 12) - this.y;
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist < 8) {
+                            this.state = 'HOVERING';
+                            this.hoverTimer = 100 + Math.random() * 120;
+                        } else {
+                            this.x += (dx / dist) * this.speed + Math.sin(Date.now() * 0.01) * 0.7;
+                            this.y += (dy / dist) * this.speed + Math.cos(Date.now() * 0.01) * 0.7;
+                        }
+                    } else if (this.state === 'HOVERING') {
+                        this.hoverTimer--;
+                        this.x += (Math.random() - 0.5) * 1.2;
+                        this.y += (Math.random() - 0.5) * 1.2;
+
+                        if (this.hoverTimer <= 0) {
+                            this.targetFlower = bloomed[Math.floor(Math.random() * bloomed.length)];
+                            this.state = 'FLYING';
+                        }
+                    }
+                } else {
+                    this.x += Math.sin(Date.now() * 0.002) * 1.5;
+                    this.y += Math.cos(Date.now() * 0.003) * 0.8;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(0, 14, 5, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                const wingY = Math.sin(this.wingAngle) * 3;
+                ctx.beginPath();
+                ctx.ellipse(-3, -5 + wingY, 3.5, 7, -Math.PI / 6, 0, Math.PI * 2);
+                ctx.ellipse(3, -5 + wingY, 3.5, 7, Math.PI / 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffc107';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#212121';
+                ctx.fillRect(-2, -5, 2.5, 10);
+                ctx.fillRect(2, -5, 2.5, 10);
+
+                ctx.beginPath();
+                ctx.arc(-7, 0, 3.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        bees.push(new Bee());
+        bees.push(new Bee());
+
+        window.addEventListener('pointerdown', (e) => {
+            startMusic();
+            flowers.push(new Flower(e.clientX, e.clientY));
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, Math.max(width, height));
+            bgGrad.addColorStop(0, '#1c0a12');
+            bgGrad.addColorStop(1, '#070204');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            ambientParticles.forEach(p => {
+                p.alpha += p.speed;
+                if (p.alpha > 1 || p.alpha < 0) p.speed = -p.speed;
+                ctx.fillStyle = `rgba(255, 235, 240, ${Math.abs(p.alpha) * 0.4})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            flowers.forEach(flower => {
+                flower.update();
+                flower.draw(ctx);
+            });
+
+            bees.forEach(bee => {
+                bee.update();
+                bee.draw(ctx);
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
